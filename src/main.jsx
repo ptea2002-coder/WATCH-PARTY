@@ -118,6 +118,59 @@ function App() {
   useEffect(() => { loadRoomDetails(activeId); }, [activeId, loadRoomDetails]);
 
   useEffect(() => {
+    if (!activeRoom?.video_id) return;
+    let disposed = false;
+    const boot = () => {
+      if (disposed || !window.YT?.Player) return;
+      if (playerRef.current?.destroy) { try { playerRef.current.destroy(); } catch {} }
+      playerReadyRef.current = false;
+      playerRef.current = new window.YT.Player('youtube-player', {
+        videoId: activeRoom.video_id,
+        playerVars: { playsinline: 1, rel: 0, origin: window.location.origin },
+        events: {
+          onReady: (event) => {
+            playerReadyRef.current = true; event.target.setVolume(volume);
+            const target = Number(activeRoom.playback_time || 0); if (target > 0) event.target.seekTo(target, true);
+            if (activeRoom.playback_state === 'playing') event.target.playVideo();
+          },
+          onStateChange: async (event) => {
+            if (syncGuardRef.current) return;
+            if (event.data === window.YT.PlayerState.ENDED) { const nextIndex = (activeRoom.current_video_index || 0) + 1; if (nextIndex < playlist.length) await playPlaylistIndex(nextIndex); else await updatePlayback('paused', 0); }
+            else if (event.data === window.YT.PlayerState.PLAYING && canControl) await updatePlayback('playing', event.target.getCurrentTime());
+            else if (event.data === window.YT.PlayerState.PAUSED && canControl) await updatePlayback('paused', event.target.getCurrentTime());
+          }
+        }
+      });
+    };
+    if (window.YT?.Player) boot(); else {
+      const prior = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = () => { prior?.(); boot(); };
+      if (!document.querySelector('script[data-youtube-iframe-api]')) { const script = document.createElement('script'); script.src = 'https://www.youtube.com/iframe_api'; script.async = true; script.dataset.youtubeIframeApi = 'true'; document.head.appendChild(script); }
+    }
+    return () => { disposed = true; };
+  }, [activeRoom?.video_id]);
+
+  useEffect(() => {
+    if (!activeRoom || !playerReadyRef.current || !playerRef.current) return;
+    const expected = Number(activeRoom.playback_time || 0); const updatedAt = new Date(activeRoom.playback_updated_at || activeRoom.video_updated_at || 0).getTime();
+    const target = activeRoom.playback_state === 'playing' ? expected + Math.max(0, (Date.now() - updatedAt) / 1000) : expected;
+    const actual = playerRef.current.getCurrentTime?.() || 0;
+    if (Math.abs(actual - target) > 2.5) { syncGuardRef.current = true; playerRef.current.seekTo(target, true); setTimeout(() => { syncGuardRef.current = false; }, 500); }
+    if (activeRoom.playback_state === 'playing') playerRef.current.playVideo?.(); else playerRef.current.pauseVideo?.();
+  }, [activeRoom?.playback_updated_at, activeRoom?.playback_state, activeRoom?.video_id]);
+
+  useEffect(() => {
+    if (!playerReadyRef.current || !playerRef.current || !activeRoom || !canControl) return;
+    const timer = setInterval(() => { if (playerRef.current?.getPlayerState?.() === window.YT?.PlayerState?.PLAYING) updatePlayback('playing', playerRef.current.getCurrentTime()); }, 5000);
+    return () => clearInterval(timer);
+  }, [activeRoom?.id, canControl]);
+
+  useEffect(() => {
+    const latest = messages[messages.length - 1]; if (!latest) return; setOverlayMessage(latest);
+    const timer = setTimeout(() => setOverlayMessage((current) => current?.id === latest.id ? null : current), 5000); return () => clearTimeout(timer);
+  }, [messages.length]);
+
+
+  useEffect(() => {
     if (!activeId || !supabase) return;
     const channel = supabase.channel('room-live-' + activeId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: 'room_id=eq.' + activeId }, () => loadRoomDetails(activeId))
@@ -295,12 +348,12 @@ function App() {
         <div className="room-heading"><div><small className="eyebrow">PHÒNG ĐANG HOẠT ĐỘNG</small><h1>{activeRoom.name}</h1><p>Phòng riêng · {activeRoom.status === 'watching' ? 'Đang xem' : 'Đang chờ'} · Tạo lúc {new Date(activeRoom.created_at).toLocaleString('vi-VN')}</p></div><button className="secondary" onClick={copyInvite}><Link2/> {copied ? 'Đã sao chép' : 'Mời bạn bè'}</button></div>
         <div className="room-main-grid">
           <div className="room-primary">
-            <div className="video-player-section">
-              {activeRoom.video_id ? <div className="youtube-frame-wrap" id="youtube-player-container"><div id="youtube-player"></div></div> : <div className="video-empty"><div className="video-empty-icon"><Film/></div><h2>Chưa có video trong phòng</h2><p>Chủ phòng có thể dán link YouTube để phát video nhúng cho các thành viên.</p><small>Hỗ trợ link youtube.com/watch, youtu.be và YouTube Shorts.</small></div>}
+            <div className={"video-player-section " + (miniPlayer ? "is-floating" : "")}>{miniPlayer && <div className="floating-title"><span>{activeRoom.name}</span><button onClick={()=>setMiniPlayer(false)}><X/></button></div>}
+              {activeRoom.video_id ? <div className="youtube-frame-wrap" id="youtube-player-container"><div id="youtube-player"></div>{miniPlayer && overlayMessage && <div className="mini-chat-overlay"><b>{overlayMessage.display_name}: </b>{overlayMessage.body}</div>}{miniPlayer && <form className="mini-chat-input" onSubmit={sendOverlayChat}><input value={message} onChange={e=>setMessage(e.target.value)} placeholder="Chat nhanh..."/><button><Send/></button></form>}</div> : <div className="video-empty"><div className="video-empty-icon"><Film/></div><h2>Chưa có video trong phòng</h2><p>Chủ phòng có thể dán link YouTube để phát video nhúng cho các thành viên.</p><small>Hỗ trợ link youtube.com/watch, youtu.be và YouTube Shorts.</small></div>}
               {canControl ? <form className="youtube-link-form" onSubmit={saveYouTubeVideo}><label htmlFor="youtube-url">LINK VIDEO YOUTUBE</label><div><input id="youtube-url" type="url" value={youtubeInput} onChange={(e) => setYoutubeInput(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." required/><button className="primary" disabled={videoBusy}>{videoBusy ? <LoaderCircle className="spin"/> : <Play/>}{activeRoom.video_id ? 'Thay video' : 'Phát video'}</button></div>{activeRoom.video_id && <button type="button" className="video-clear" onClick={clearYouTubeVideo} disabled={videoBusy}>Gỡ video khỏi phòng</button>}<small>Người có quyền điều khiển được thêm video và điều khiển phát.</small></form> : <div className="video-host-note">Nguồn video do chủ phòng quản lý.</div>}
               {canControl && <form className="playlist-add-form" onSubmit={addPlaylistLinks}><label>THÊM NHIỀU VIDEO (MỖI LINK MỘT DÒNG)</label><textarea value={playlistInput} onChange={(e) => setPlaylistInput(e.target.value)} placeholder="Dán nhiều link YouTube, mỗi dòng một link"/><button className="secondary"><ListPlus/> Thêm vào danh sách</button></form>}
               <div className="playlist-panel"><h3><ListPlus/> Danh sách phát <span>{playlist.length} video</span></h3>{playlist.map((item,i)=><div className={'playlist-row '+(i===(activeRoom.current_video_index||0)?'selected':'')} key={item.id+'-'+i}><span>{i+1}</span><a href={item.url} target="_blank" rel="noreferrer">{item.id}</a>{canControl && <button onClick={()=>playPlaylistIndex(i)}>{i===(activeRoom.current_video_index||0)?'Đang chọn':'Phát'}</button>}</div>)}</div>
-              <div className="playback-toolbar"><button className="secondary" onClick={()=>setMiniPlayer(true)}><PictureInPicture2/> Popup nổi</button><label><Volume2/><input type="range" min="0" max="100" value={volume} onChange={(e)=>{setVolume(Number(e.target.value));localStorage.setItem('watchparty_volume',e.target.value);playerRef.current?.setVolume(Number(e.target.value));}}/></label><small>Âm lượng riêng trên thiết bị này</small></div>
+              <div className="playback-toolbar"><button className="secondary" onClick={()=>setMiniPlayer((v)=>!v)}><PictureInPicture2/> {miniPlayer ? "Thu popup" : "Popup nổi"}</button><label><Volume2/><input type="range" min="0" max="100" value={volume} onChange={(e)=>{setVolume(Number(e.target.value));localStorage.setItem('watchparty_volume',e.target.value);playerRef.current?.setVolume(Number(e.target.value));}}/></label><small>Âm lượng riêng trên thiết bị này</small></div>
             </div>
             <div className="room-chat-panel"><div className="panel-heading"><div><h2><MessageCircle/> Trò chuyện trực tiếp</h2><p>Tin nhắn được lưu trong phòng và cập nhật theo thời gian thực.</p></div><span className="live-pill">● LIVE</span></div>
               <div className="room-chat-list">{messages.map((item) => <div className={item.user_id === user.id ? 'room-chat-message own' : 'room-chat-message'} key={item.id}><b>{item.display_name}</b><small>{new Date(item.created_at).toLocaleString('vi-VN')}</small><p>{item.body}</p></div>)}{!messages.length && <div className="room-chat-empty">Chưa có tin nhắn trong phòng. Hãy bắt đầu cuộc trò chuyện.</div>}</div>
