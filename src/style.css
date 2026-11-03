@@ -200,3 +200,37 @@ footer{border-color:var(--line);color:var(--muted)}
 :root[data-theme="light"] .leave-room{color:#a43d52}
 :root[data-theme="light"] .room-chat-compose input,:root[data-theme="light"] .youtube-link-form input{color:var(--text)}
 @media(max-width:760px){:root[data-theme="light"] .sidebar{box-shadow:18px 0 50px #20243722}}
+
+/* Guest identity, playlist queue, member permissions and floating watch mode */
+#youtube-player{position:absolute;inset:0;width:100%;height:100%}
+.youtube-frame-wrap{position:relative;overflow:hidden}
+.playlist-add-form,.playlist-panel{padding:14px 16px;border-top:1px solid var(--line);background:var(--surface)}
+.playlist-add-form label{display:block;font-size:9px;letter-spacing:1px;color:var(--muted);margin-bottom:8px}
+.playlist-add-form textarea{width:100%;min-height:76px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--input-bg);color:var(--text);padding:10px;font:inherit;font-size:11px}
+.playlist-add-form button{margin-top:8px}
+.playlist-panel h3{display:flex;align-items:center;gap:8px;margin:0 0 10px;font:600 12px 'Space Grotesk';color:var(--text)}
+.playlist-panel h3 span{margin-left:auto;color:var(--muted);font:10px sans-serif}
+.playlist-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:7px;border-bottom:1px solid var(--line);font-size:10px}
+.playlist-row.selected{background:var(--accent-soft)}
+.playlist-row>span{color:var(--muted);width:18px}
+.playlist-row a{color:var(--text);text-decoration:none;flex:1}
+.playlist-row button,.permission-toggle{background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:6px 9px;font-size:9px}
+.permission-toggle{white-space:nowrap}
+.playback-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 15px;border-top:1px solid var(--line);background:var(--surface)}
+.playback-toolbar>label{display:flex;align-items:center;gap:8px;color:var(--muted)}
+.playback-toolbar input{width:95px;accent-color:var(--accent)}
+.playback-toolbar small{font-size:9px;color:var(--muted)}
+.video-player-section.is-floating{position:fixed;z-index:1000;right:20px;bottom:20px;width:min(420px,calc(100vw - 28px));box-shadow:0 18px 65px #0009;border:1px solid #ffffff24;border-radius:12px;overflow:visible}
+.floating-title{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;background:#151827;color:#fff;border-radius:11px 11px 0 0;font-size:10px}
+.floating-title button{background:transparent;color:#fff;padding:4px}
+.floating-title svg{width:15px}
+.is-floating .youtube-frame-wrap{border-radius:0 0 11px 11px}
+.mini-chat-overlay{position:absolute;z-index:4;top:40px;left:10px;right:10px;pointer-events:none;background:#090b12a8;color:#fff;padding:6px 9px;border-radius:6px;font-size:10px;line-height:1.4;text-shadow:0 1px 2px #000;animation:chatFade .3s ease}
+.mini-chat-overlay b{color:#d8c7ff}
+@keyframes chatFade{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.mini-chat-input{position:absolute;z-index:5;left:9px;right:9px;bottom:9px;display:flex;gap:5px;opacity:0;transform:translateY(5px);pointer-events:none;transition:.18s}
+.is-floating:hover .mini-chat-input,.mini-chat-input:focus-within{opacity:1;transform:none;pointer-events:auto}
+.mini-chat-input input{flex:1;min-width:0;background:#0c101bdc;border:1px solid #ffffff44;border-radius:7px;color:white;padding:8px 10px;font-size:10px;outline:none;backdrop-filter:blur(8px)}
+.mini-chat-input button{background:#8664df;color:#fff;border-radius:7px;padding:0 10px}
+.mini-chat-input svg{width:14px}
+@media(max-width:600px){.video-player-section.is-floating{right:10px;bottom:10px;width:calc(100vw - 20px)}.playback-toolbar{gap:8px}.playback-toolbar small{width:100%}}
