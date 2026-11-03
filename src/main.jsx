@@ -38,7 +38,7 @@ function App() {
 
   const loadRooms = useCallback(async () => {
     if (!user || !supabase) return;
-    const { data, error: loadError } = await supabase.from('rooms').select('*').order('created_at', { ascending: false });
+    const { data, error: loadError } = await supabase.from('rooms').select('*').neq('status', 'ended').order('created_at', { ascending: false });
     if (loadError) { setError(loadError.message); return; }
     setRooms(data || []);
     setActiveId((current) => current && data?.some((room) => room.id === current) ? current : data?.[0]?.id || null);
@@ -162,13 +162,17 @@ function App() {
 
   const leaveRoom = async () => {
     if (!activeRoom || !user) return;
+    setBusy(true); setError('');
     if (activeRoom.host_id === user.id) {
-      setError('Chủ phòng chưa thể rời phòng. Hãy kết thúc phòng hoặc chuyển quyền chủ phòng trước.');
-      return;
+      const { error: endError } = await supabase.rpc('end_room', { target_room: activeRoom.id });
+      if (endError) setError(endError.message);
+      else { setActiveId(null); await loadRooms(); setNotice('Đã kết thúc phòng.'); }
+    } else {
+      const { error: leaveError } = await supabase.from('room_members').delete().eq('room_id', activeRoom.id).eq('user_id', user.id);
+      if (leaveError) setError(leaveError.message);
+      else { setActiveId(null); await loadRooms(); setNotice('Đã rời phòng.'); }
     }
-    const { error: leaveError } = await supabase.from('room_members').delete().eq('room_id', activeRoom.id).eq('user_id', user.id);
-    if (leaveError) setError(leaveError.message);
-    else { setActiveId(null); await loadRooms(); setNotice('Đã rời phòng.'); }
+    setBusy(false);
   };
 
   const copyInvite = async () => {
@@ -208,7 +212,7 @@ function App() {
           <aside className="room-info-panel"><div className="panel-heading"><div><h2><Users/> Thành viên</h2><p>{members.length} người trong phòng</p></div></div>
             <div className="room-member-list">{members.map((member) => <div className="room-member-row" key={member.user_id}><b>{(member.display_name || 'K').slice(0,1).toUpperCase()}</b><div><strong>{member.display_name}</strong><small>{member.role === 'host' ? 'Chủ phòng' : 'Thành viên'}</small></div>{member.role === 'host' && <span>HOST</span>}</div>)}</div>
             <div className="invite-panel"><small>MÃ MỜI RIÊNG CỦA PHÒNG</small><strong>{activeRoom.invite_code}</strong><button className="secondary full" onClick={copyInvite}><Copy/> Sao chép link mời</button></div>
-            <div className="room-actions-panel"><button className="secondary full" onClick={() => { setNewDisplayName(profile?.display_name || 'Khách'); setModal('rename'); }}><Pencil/> Đổi tên hiển thị</button><button className="leave-room full" onClick={leaveRoom}>Rời phòng</button></div>
+            <div className="room-actions-panel"><button className="secondary full" onClick={() => { setNewDisplayName(profile?.display_name || 'Khách'); setModal('rename'); }}><Pencil/> Đổi tên hiển thị</button><button className="leave-room full" onClick={leaveRoom}>{activeRoom.host_id === user.id ? 'Kết thúc phòng' : 'Rời phòng'}</button></div>
           </aside>
         </div>
       </section> : <><section className="hero"><div><small className="eyebrow">✦ YOUR CINEMA, YOUR PEOPLE</small><h1>Phim hay hơn khi<br/><em>xem cùng nhau.</em></h1><p>Tạo không gian riêng, mời hội bạn và cùng tận hưởng từng khoảnh khắc.</p><div className="actions"><button className="primary" onClick={() => setModal('create')}><Plus/> Tạo phòng xem</button><button className="secondary" onClick={() => setModal('join')}><Link2/> Tham gia bằng mã</button></div></div><div className="hero-art"><div className="orbit"></div><div className="screen"><Play fill="currentColor"/><small>YOUR MOVIE NIGHT</small></div><span className="float one">🔒 Phòng riêng tư</span><span className="float two">✦ Cùng bạn bè</span><i>✦</i></div></section>
