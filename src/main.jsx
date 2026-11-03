@@ -244,7 +244,7 @@ function App() {
     const videoId = parseYouTubeId(youtubeInput);
     if (!videoId) { setError('Link YouTube không hợp lệ.'); return; }
     const next = [...playlist, { id: videoId, url: 'https://www.youtube.com/watch?v=' + videoId }];
-    const { error: e } = await supabase.from('rooms').update({ playlist: next, video_id: videoId, video_url: next.at(-1).url, current_video_index: next.length - 1, video_updated_at: new Date().toISOString(), playback_state: 'playing', playback_time: 0, playback_updated_at: new Date().toISOString(), status: 'watching' }).eq('id', activeRoom.id);
+    const { error: e } = await supabase.rpc('update_room_playlist', { target_room: activeRoom.id, items: next, selected_index: next.length - 1 });
     if (e) setError(e.message); else { setYoutubeInput(''); setNotice('Đã thêm video vào danh sách phát.'); }
   };
 
@@ -254,26 +254,26 @@ function App() {
     const ids = playlistInput.split(/\n|,/).map((x) => parseYouTubeId(x.trim())).filter(Boolean);
     if (!ids.length) { setError('Hãy nhập ít nhất một link YouTube hợp lệ.'); return; }
     const next = [...playlist, ...ids.map((id) => ({ id, url: 'https://www.youtube.com/watch?v=' + id }))];
-    const { error: e } = await supabase.from('rooms').update({ playlist: next, video_id: activeRoom.video_id || ids[0], video_url: activeRoom.video_url || 'https://www.youtube.com/watch?v=' + ids[0], current_video_index: activeRoom.video_id ? (activeRoom.current_video_index || 0) : 0, status: 'watching' }).eq('id', activeRoom.id);
+    const { error: e } = await supabase.rpc('update_room_playlist', { target_room: activeRoom.id, items: next, selected_index: activeRoom.video_id ? (activeRoom.current_video_index || 0) : 0 });
     if (e) setError(e.message); else { setPlaylistInput(''); setNotice('Đã thêm ' + ids.length + ' video vào hàng chờ.'); }
   };
 
   const updatePlayback = async (state, time) => {
     if (!activeRoom || !canControl || syncGuardRef.current) return;
-    const { error: e } = await supabase.from('rooms').update({ playback_state: state, playback_time: Math.max(0, Number(time) || 0), playback_updated_at: new Date().toISOString() }).eq('id', activeRoom.id);
+    const { error: e } = await supabase.rpc('update_room_playback', { target_room: activeRoom.id, state, seconds: Math.max(0, Number(time) || 0) });
     if (e) setError(e.message);
   };
 
   const playPlaylistIndex = async (index) => {
     if (!activeRoom || !canControl || index < 0 || index >= playlist.length) return;
     const item = playlist[index];
-    const { error: e } = await supabase.from('rooms').update({ current_video_index: index, video_id: item.id, video_url: item.url, video_updated_at: new Date().toISOString(), playback_state: 'playing', playback_time: 0, playback_updated_at: new Date().toISOString(), status: 'watching' }).eq('id', activeRoom.id);
+    const next = playlist.map((v,i) => i === index ? item : v); const { error: e } = await supabase.rpc('update_room_playlist', { target_room: activeRoom.id, items: next, selected_index: index });
     if (e) setError(e.message);
   };
 
   const grantControl = async (member, allowed) => {
     if (!activeRoom || activeRoom.host_id !== user.id) return;
-    const { error: e } = await supabase.from('room_members').update({ can_control: allowed }).eq('room_id', activeRoom.id).eq('user_id', member.user_id);
+    const { error: e } = await supabase.rpc('set_room_member_control', { target_room: activeRoom.id, target_user: member.user_id, allowed });
     if (e) setError(e.message); else setMembers((old) => old.map((m) => m.user_id === member.user_id ? { ...m, can_control: allowed } : m));
   };
 
