@@ -234,3 +234,25 @@ footer{border-color:var(--line);color:var(--muted)}
 .mini-chat-input button{background:#8664df;color:#fff;border-radius:7px;padding:0 10px}
 .mini-chat-input svg{width:14px}
 @media(max-width:600px){.video-player-section.is-floating{right:10px;bottom:10px;width:calc(100vw - 20px)}.playback-toolbar{gap:8px}.playback-toolbar small{width:100%}}
+
+/* Touch devices have no hover state: keep quick chat visible in floating player. */
+@media (hover: none), (max-width: 760px) {
+  .is-floating .mini-chat-input {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    bottom: 8px;
+  }
+  .is-floating .mini-chat-overlay {
+    top: 40px;
+    left: 8px;
+    right: 8px;
+  }
+  .is-floating .youtube-frame-wrap {
+    padding-bottom: 42px;
+  }
+  .is-floating .mini-chat-input input,
+  .is-floating .mini-chat-input button {
+    min-height: 34px;
+  }
+}
