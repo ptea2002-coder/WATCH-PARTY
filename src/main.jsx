@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import { Play, Plus, Users, MessageCircle, Link2, Search, Bell, Settings, Send, Copy, Check, X, ChevronRight, Menu, Clapperboard, DoorOpen, Film, LoaderCircle, Pencil } from 'lucide-react';
+import { Play, Plus, Users, MessageCircle, Link2, Search, Bell, Settings, Send, Copy, Check, X, ChevronRight, Menu, Clapperboard, DoorOpen, Film, LoaderCircle, Pencil, Sun, Moon } from 'lucide-react';
 import './style.css';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -30,6 +30,12 @@ function App() {
   const [notice, setNotice] = useState('');
   const [copied, setCopied] = useState(false);
   const [nav, setNav] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('watchparty_theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('watchparty_theme', theme);
+  }, [theme]);
 
   const user = session?.user;
   const activeRoom = rooms.find((room) => room.id === activeId) || null;
@@ -233,13 +239,13 @@ function App() {
 
   if (!identityReady || !session) return <div className="auth-screen"><div className="auth-card"><Brand/><small className="eyebrow">YOUR CINEMA, YOUR PEOPLE</small><h1>Đang nhận diện thiết bị…</h1><p>WATCH//PARTY đang tạo hoặc khôi phục danh tính khách trên trình duyệt này.</p>{error && <p className="error">{error}</p>}<LoaderCircle className="spin"/></div></div>;
 
-  return <div className="shell">
+  return <div className="shell" data-theme={theme}>
     <aside className={'sidebar ' + (nav ? 'open' : '')}><Brand/><div className="workspace"><b>{(profile?.display_name || 'W').slice(0,1).toUpperCase()}</b><div>{profile?.display_name || 'Workspace cá nhân'}<small>Thiết bị này</small></div></div><label>MENU CHÍNH</label>
       {['Phòng của tôi','Tham gia phòng'].map((item) => <button key={item} className={'nav ' + (tab === item ? 'active' : '')} onClick={() => { setTab(item); setNav(false); if (item === 'Tham gia phòng') setModal('join'); }}>{item === 'Phòng của tôi' ? <Film/> : <DoorOpen/>}{item}</button>)}
       <label className="space-label">PHÒNG ĐÃ THAM GIA</label>{rooms.slice(0,5).map((room) => <button key={room.id} className="side-room-btn" onClick={() => setActiveId(room.id)}>◉　{room.name}</button>)}
-      <div className="side-bottom"><div className="upgrade"><Clapperboard/><b>Đêm phim bắt đầu từ đây</b><p>Tạo phòng riêng và mời bạn bè bằng một đường link.</p><a onClick={() => setModal('create')}>Tạo phòng mới →</a></div><div className="profile"><b>{(profile?.display_name || 'U').slice(0,1).toUpperCase()}</b><div>{profile?.display_name || 'Thành viên'}<small>Đã đăng nhập</small></div><button onClick={() => { setNewDisplayName(profile?.display_name || "Khách"); setModal("rename"); }} title="Đổi tên"><Pencil/></button></div></div>
+      <div className="side-bottom"><div className="upgrade"><Clapperboard/><b>Đêm phim bắt đầu từ đây</b><p>Tạo phòng riêng và mời bạn bè bằng một đường link.</p><a onClick={() => setModal('create')}>Tạo phòng mới →</a></div><div className="profile"><b>{(profile?.display_name || 'U').slice(0,1).toUpperCase()}</b><div>{profile?.display_name || 'Thành viên'}<small>Khách · Thiết bị này</small></div><button onClick={() => { setNewDisplayName(profile?.display_name || "Khách"); setModal("rename"); }} title="Đổi tên"><Pencil/></button></div></div>
     </aside>
-    <main><header><button className="hamb" onClick={() => setNav(!nav)}><Menu/></button><div className="crumb">Workspace　/　<strong>{tab}</strong></div><div className="head-right"><span>Khách đã được nhận diện</span><Bell/><b className="user">{(profile?.display_name || 'U').slice(0,1).toUpperCase()}</b></div></header>
+    <main><header><button className="hamb" onClick={() => setNav(!nav)}><Menu/></button><div className="crumb">Workspace　/　<strong>{tab}</strong></div><div className="head-right"><span>Khách đã được nhận diện</span><button className="theme-toggle" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={theme === "dark" ? "Bật giao diện sáng" : "Bật giao diện tối"} title={theme === "dark" ? "Giao diện sáng" : "Giao diện tối"}>{theme === "dark" ? <Sun/> : <Moon/>}</button><Bell/><b className="user">{(profile?.display_name || 'U').slice(0,1).toUpperCase()}</b></div></header>
       <div className="content">{activeRoom ? <section className="room-workspace">
         <div className="room-topline"><button className="back-link" onClick={() => setActiveId(null)}>← Danh sách phòng</button><small className="eyebrow">WATCH//PARTY ROOM</small></div>
         <div className="room-heading"><div><small className="eyebrow">PHÒNG ĐANG HOẠT ĐỘNG</small><h1>{activeRoom.name}</h1><p>Phòng riêng · {activeRoom.status === 'watching' ? 'Đang xem' : 'Đang chờ'} · Tạo lúc {new Date(activeRoom.created_at).toLocaleString('vi-VN')}</p></div><button className="secondary" onClick={copyInvite}><Link2/> {copied ? 'Đã sao chép' : 'Mời bạn bè'}</button></div>
