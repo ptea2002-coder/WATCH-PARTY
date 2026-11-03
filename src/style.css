@@ -76,3 +76,19 @@
 .room-actions-panel .leave-room{border:1px solid #343044;border-radius:7px}
 @media(max-width:1000px){.room-main-grid{grid-template-columns:1fr}.room-info-panel{position:static}.room-member-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px}}
 @media(max-width:760px){.room-workspace{padding-top:0}.room-heading{align-items:flex-start;flex-direction:column}.room-heading .secondary{width:100%;justify-content:center}.video-empty{min-height:210px;padding:18px}.room-chat-panel,.room-info-panel{padding:12px}.room-chat-list{height:240px}.room-chat-compose .primary{padding:0 10px}.room-member-list{grid-template-columns:1fr 1fr}}
+
+/* YouTube room player and host controls */
+.video-player-section{border:1px solid #292f40;border-radius:13px;overflow:hidden;background:#101520}
+.youtube-frame-wrap{position:relative;width:100%;aspect-ratio:16/9;background:#05070b}
+.youtube-frame-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.video-player-section .video-empty{border:0;border-radius:0;min-height:250px}
+.youtube-link-form{padding:15px;border-top:1px solid #292f40;background:#111520}
+.youtube-link-form>label{display:block;font-size:8px;letter-spacing:1.2px;color:#a99acb;margin-bottom:8px}
+.youtube-link-form>div{display:flex;gap:8px}
+.youtube-link-form input{flex:1;min-width:0;height:40px;border:1px solid #33394b;border-radius:8px;background:#0b1019;color:#f2f2f8;padding:0 12px;font-size:10px;outline:none}
+.youtube-link-form input:focus{border-color:#9a7bea}
+.youtube-link-form .primary{height:40px;white-space:nowrap}
+.youtube-link-form>small{display:block;color:#7e879a;font-size:8px;line-height:1.6;margin-top:9px}
+.video-clear{display:block;background:none;color:#e39a9a;font-size:9px;margin-top:9px;padding:5px 0}
+.video-host-note{padding:12px 15px;color:#858da0;font-size:9px;border-top:1px solid #292f40}
+@media(max-width:560px){.youtube-link-form>div{flex-direction:column}.youtube-link-form .primary{width:100%;justify-content:center}.youtube-link-form input{height:42px}}
