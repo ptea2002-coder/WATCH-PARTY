@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import { Play, Plus, Users, MessageCircle, Link2, Search, Bell, Settings, Send, Copy, Check, X, ChevronRight, Menu, Clapperboard, DoorOpen, Film, LoaderCircle, Pencil, Sun, Moon } from 'lucide-react';
+import { Play, Plus, Users, MessageCircle, Link2, Search, Bell, Settings, Send, Copy, Check, X, ChevronRight, Menu, Clapperboard, DoorOpen, Film, LoaderCircle, Pencil, Sun, Moon, ListPlus, PictureInPicture2, Volume2, ShieldCheck } from 'lucide-react';
 import './style.css';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -30,6 +30,14 @@ function App() {
   const [notice, setNotice] = useState('');
   const [copied, setCopied] = useState(false);
   const [nav, setNav] = useState(false);
+  const [playlistInput, setPlaylistInput] = useState('');
+  const [miniPlayer, setMiniPlayer] = useState(false);
+  const [overlayMessage, setOverlayMessage] = useState(null);
+  const [memberControl, setMemberControl] = useState({});
+  const [volume, setVolume] = useState(() => Number(localStorage.getItem('watchparty_volume') || 75));
+  const playerRef = useRef(null);
+  const playerReadyRef = useRef(false);
+  const syncGuardRef = useRef(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('watchparty_theme') || 'dark');
 
   useEffect(() => {
@@ -39,6 +47,8 @@ function App() {
 
   const user = session?.user;
   const activeRoom = rooms.find((room) => room.id === activeId) || null;
+  const playlist = Array.isArray(activeRoom?.playlist) ? activeRoom.playlist : (activeRoom?.video_id ? [{ id: activeRoom.video_id, url: activeRoom.video_url }] : []);
+  const canControl = !!activeRoom && (activeRoom.host_id === user?.id || members.some((m) => m.user_id === user?.id && m.can_control));
   const filteredRooms = useMemo(() => rooms.filter((room) => {
     const text = (room.name + ' ' + room.invite_code).toLowerCase();
     return text.includes(query.toLowerCase());
@@ -112,7 +122,7 @@ function App() {
     const channel = supabase.channel('room-live-' + activeId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: 'room_id=eq.' + activeId }, () => loadRoomDetails(activeId))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_members', filter: 'room_id=eq.' + activeId }, () => loadRoomDetails(activeId))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: 'id=eq.' + activeId }, () => loadRooms())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: 'id=eq.' + activeId }, (payload) => setRooms((old) => old.map((r) => r.id === activeId ? { ...r, ...payload.new } : r)))
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [activeId, loadRoomDetails]);
@@ -123,12 +133,14 @@ function App() {
     return () => clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => { if (profile && (!profile.display_name || profile.display_name === 'Khách') && !localStorage.getItem('watchparty_guest_name')) { setNewDisplayName(''); setModal('rename'); } }, [profile?.id]);
+
   const saveGuestName = async (event) => {
     event?.preventDefault();
     const name = newDisplayName.trim().slice(0,40);
     if (!name || !user) return;
     setBusy(true); setError('');
-    const { error: updateError } = await supabase.from('profiles').update({ display_name: name }).eq('id', user.id);
+    const { error: updateError } = await supabase.from('profiles').upsert({ id: user.id, display_name: name }, { onConflict: 'id' });
     if (updateError) setError(updateError.message);
     else {
       localStorage.setItem('watchparty_guest_name', name);
@@ -175,17 +187,49 @@ function App() {
 
   const saveYouTubeVideo = async (event) => {
     event?.preventDefault();
-    if (!activeRoom || !user || activeRoom.host_id !== user.id) return;
+    if (!activeRoom || !canControl) return;
     const videoId = parseYouTubeId(youtubeInput);
-    if (!videoId) { setError('Link YouTube không hợp lệ. Hãy dán link video, Shorts hoặc youtu.be.'); return; }
-    setVideoBusy(true); setError('');
-    const cleanUrl = 'https://www.youtube.com/watch?v=' + videoId;
-    const { error: updateError } = await supabase.from('rooms').update({
-      video_url: cleanUrl, video_id: videoId, video_updated_at: new Date().toISOString(), status: 'watching'
-    }).eq('id', activeRoom.id).eq('host_id', user.id);
-    if (updateError) setError(updateError.message);
-    else { setYoutubeInput(''); setNotice('Đã cập nhật video YouTube cho cả phòng.'); await loadRooms(); }
-    setVideoBusy(false);
+    if (!videoId) { setError('Link YouTube không hợp lệ.'); return; }
+    const next = [...playlist, { id: videoId, url: 'https://www.youtube.com/watch?v=' + videoId }];
+    const { error: e } = await supabase.from('rooms').update({ playlist: next, video_id: videoId, video_url: next.at(-1).url, current_video_index: next.length - 1, video_updated_at: new Date().toISOString(), playback_state: 'playing', playback_time: 0, playback_updated_at: new Date().toISOString(), status: 'watching' }).eq('id', activeRoom.id);
+    if (e) setError(e.message); else { setYoutubeInput(''); setNotice('Đã thêm video vào danh sách phát.'); }
+  };
+
+  const addPlaylistLinks = async (event) => {
+    event?.preventDefault();
+    if (!canControl || !activeRoom) return;
+    const ids = playlistInput.split(/\n|,/).map((x) => parseYouTubeId(x.trim())).filter(Boolean);
+    if (!ids.length) { setError('Hãy nhập ít nhất một link YouTube hợp lệ.'); return; }
+    const next = [...playlist, ...ids.map((id) => ({ id, url: 'https://www.youtube.com/watch?v=' + id }))];
+    const { error: e } = await supabase.from('rooms').update({ playlist: next, video_id: activeRoom.video_id || ids[0], video_url: activeRoom.video_url || 'https://www.youtube.com/watch?v=' + ids[0], current_video_index: activeRoom.video_id ? (activeRoom.current_video_index || 0) : 0, status: 'watching' }).eq('id', activeRoom.id);
+    if (e) setError(e.message); else { setPlaylistInput(''); setNotice('Đã thêm ' + ids.length + ' video vào hàng chờ.'); }
+  };
+
+  const updatePlayback = async (state, time) => {
+    if (!activeRoom || !canControl || syncGuardRef.current) return;
+    const { error: e } = await supabase.from('rooms').update({ playback_state: state, playback_time: Math.max(0, Number(time) || 0), playback_updated_at: new Date().toISOString() }).eq('id', activeRoom.id);
+    if (e) setError(e.message);
+  };
+
+  const playPlaylistIndex = async (index) => {
+    if (!activeRoom || !canControl || index < 0 || index >= playlist.length) return;
+    const item = playlist[index];
+    const { error: e } = await supabase.from('rooms').update({ current_video_index: index, video_id: item.id, video_url: item.url, video_updated_at: new Date().toISOString(), playback_state: 'playing', playback_time: 0, playback_updated_at: new Date().toISOString(), status: 'watching' }).eq('id', activeRoom.id);
+    if (e) setError(e.message);
+  };
+
+  const grantControl = async (member, allowed) => {
+    if (!activeRoom || activeRoom.host_id !== user.id) return;
+    const { error: e } = await supabase.from('room_members').update({ can_control: allowed }).eq('room_id', activeRoom.id).eq('user_id', member.user_id);
+    if (e) setError(e.message); else setMembers((old) => old.map((m) => m.user_id === member.user_id ? { ...m, can_control: allowed } : m));
+  };
+
+  const sendOverlayChat = async (event) => {
+    event?.preventDefault();
+    const body = message.trim(); if (!body || !activeId || !user) return;
+    setMessage('');
+    const { error: e } = await supabase.from('messages').insert({ room_id: activeId, user_id: user.id, body });
+    if (e) setError(e.message);
   };
 
   const clearYouTubeVideo = async () => {
@@ -252,8 +296,11 @@ function App() {
         <div className="room-main-grid">
           <div className="room-primary">
             <div className="video-player-section">
-              {activeRoom.video_id ? <div className="youtube-frame-wrap"><iframe key={activeRoom.video_id} src={`https://www.youtube-nocookie.com/embed/${activeRoom.video_id}?rel=0&modestbranding=1`} title="Video YouTube trong phòng" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen/></div> : <div className="video-empty"><div className="video-empty-icon"><Film/></div><h2>Chưa có video trong phòng</h2><p>Chủ phòng có thể dán link YouTube để phát video nhúng cho các thành viên.</p><small>Hỗ trợ link youtube.com/watch, youtu.be và YouTube Shorts.</small></div>}
-              {activeRoom.host_id === user.id ? <form className="youtube-link-form" onSubmit={saveYouTubeVideo}><label htmlFor="youtube-url">LINK VIDEO YOUTUBE</label><div><input id="youtube-url" type="url" value={youtubeInput} onChange={(e) => setYoutubeInput(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." required/><button className="primary" disabled={videoBusy}>{videoBusy ? <LoaderCircle className="spin"/> : <Play/>}{activeRoom.video_id ? 'Thay video' : 'Phát video'}</button></div>{activeRoom.video_id && <button type="button" className="video-clear" onClick={clearYouTubeVideo} disabled={videoBusy}>Gỡ video khỏi phòng</button>}<small>Chỉ chủ phòng được thay đổi nguồn video. Video được lưu trong phòng và cập nhật cho mọi thành viên.</small></form> : <div className="video-host-note">Nguồn video do chủ phòng quản lý.</div>}
+              {activeRoom.video_id ? <div className="youtube-frame-wrap" id="youtube-player-container"><div id="youtube-player"></div></div> : <div className="video-empty"><div className="video-empty-icon"><Film/></div><h2>Chưa có video trong phòng</h2><p>Chủ phòng có thể dán link YouTube để phát video nhúng cho các thành viên.</p><small>Hỗ trợ link youtube.com/watch, youtu.be và YouTube Shorts.</small></div>}
+              {canControl ? <form className="youtube-link-form" onSubmit={saveYouTubeVideo}><label htmlFor="youtube-url">LINK VIDEO YOUTUBE</label><div><input id="youtube-url" type="url" value={youtubeInput} onChange={(e) => setYoutubeInput(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." required/><button className="primary" disabled={videoBusy}>{videoBusy ? <LoaderCircle className="spin"/> : <Play/>}{activeRoom.video_id ? 'Thay video' : 'Phát video'}</button></div>{activeRoom.video_id && <button type="button" className="video-clear" onClick={clearYouTubeVideo} disabled={videoBusy}>Gỡ video khỏi phòng</button>}<small>Người có quyền điều khiển được thêm video và điều khiển phát.</small></form> : <div className="video-host-note">Nguồn video do chủ phòng quản lý.</div>}
+              {canControl && <form className="playlist-add-form" onSubmit={addPlaylistLinks}><label>THÊM NHIỀU VIDEO (MỖI LINK MỘT DÒNG)</label><textarea value={playlistInput} onChange={(e) => setPlaylistInput(e.target.value)} placeholder="Dán nhiều link YouTube, mỗi dòng một link"/><button className="secondary"><ListPlus/> Thêm vào danh sách</button></form>}
+              <div className="playlist-panel"><h3><ListPlus/> Danh sách phát <span>{playlist.length} video</span></h3>{playlist.map((item,i)=><div className={'playlist-row '+(i===(activeRoom.current_video_index||0)?'selected':'')} key={item.id+'-'+i}><span>{i+1}</span><a href={item.url} target="_blank" rel="noreferrer">{item.id}</a>{canControl && <button onClick={()=>playPlaylistIndex(i)}>{i===(activeRoom.current_video_index||0)?'Đang chọn':'Phát'}</button>}</div>)}</div>
+              <div className="playback-toolbar"><button className="secondary" onClick={()=>setMiniPlayer(true)}><PictureInPicture2/> Popup nổi</button><label><Volume2/><input type="range" min="0" max="100" value={volume} onChange={(e)=>{setVolume(Number(e.target.value));localStorage.setItem('watchparty_volume',e.target.value);playerRef.current?.setVolume(Number(e.target.value));}}/></label><small>Âm lượng riêng trên thiết bị này</small></div>
             </div>
             <div className="room-chat-panel"><div className="panel-heading"><div><h2><MessageCircle/> Trò chuyện trực tiếp</h2><p>Tin nhắn được lưu trong phòng và cập nhật theo thời gian thực.</p></div><span className="live-pill">● LIVE</span></div>
               <div className="room-chat-list">{messages.map((item) => <div className={item.user_id === user.id ? 'room-chat-message own' : 'room-chat-message'} key={item.id}><b>{item.display_name}</b><small>{new Date(item.created_at).toLocaleString('vi-VN')}</small><p>{item.body}</p></div>)}{!messages.length && <div className="room-chat-empty">Chưa có tin nhắn trong phòng. Hãy bắt đầu cuộc trò chuyện.</div>}</div>
@@ -261,7 +308,7 @@ function App() {
             </div>
           </div>
           <aside className="room-info-panel"><div className="panel-heading"><div><h2><Users/> Thành viên</h2><p>{members.length} người trong phòng</p></div></div>
-            <div className="room-member-list">{members.map((member) => <div className="room-member-row" key={member.user_id}><b>{(member.display_name || 'K').slice(0,1).toUpperCase()}</b><div><strong>{member.display_name}</strong><small>{member.role === 'host' ? 'Chủ phòng' : 'Thành viên'}</small></div>{member.role === 'host' && <span>HOST</span>}</div>)}</div>
+            <div className="room-member-list">{members.map((member) => <div className="room-member-row" key={member.user_id}><b>{(member.display_name || 'K').slice(0,1).toUpperCase()}</b><div><strong>{member.display_name}</strong><small>{member.role === 'host' ? 'Chủ phòng' : member.can_control ? 'Được quyền điều khiển' : 'Thành viên'}</small></div>{member.role === 'host' ? <span>HOST</span> : activeRoom.host_id === user.id ? <button className="permission-toggle" onClick={()=>grantControl(member,!member.can_control)}>{member.can_control?'Thu quyền':'Cấp quyền'}</button> : null}</div>)}</div>
             <div className="invite-panel"><small>MÃ MỜI RIÊNG CỦA PHÒNG</small><strong>{activeRoom.invite_code}</strong><button className="secondary full" onClick={copyInvite}><Copy/> Sao chép link mời</button></div>
             <div className="room-actions-panel"><button className="secondary full" onClick={() => { setNewDisplayName(profile?.display_name || 'Khách'); setModal('rename'); }}><Pencil/> Đổi tên hiển thị</button><button className="leave-room full" onClick={leaveRoom}>{activeRoom.host_id === user.id ? 'Kết thúc phòng' : 'Rời phòng'}</button></div>
           </aside>
@@ -280,6 +327,7 @@ function App() {
     {modal && <div className="overlay" onClick={() => setModal('')}><form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={modal === "create" ? createRoom : modal === "join" ? joinRoom : saveGuestName}><button type="button" className="close" onClick={() => setModal('')}><X/></button><div className="dialog-icon">{modal === 'create' ? <Clapperboard/> : modal === 'join' ? <DoorOpen/> : <Pencil/>}</div><small className="eyebrow">{modal === 'create' ? 'START A MOVIE NIGHT' : modal === 'join' ? 'JOIN YOUR FRIENDS' : 'YOUR GUEST IDENTITY'}</small><h2>{modal === 'create' ? 'Tạo phòng xem mới' : modal === 'join' ? 'Tham gia phòng' : 'Đổi tên hiển thị'}</h2><p>{modal === 'create' ? 'Một không gian riêng cho bạn và những người bạn yêu quý.' : modal === 'join' ? 'Nhập mã mời bạn nhận được từ chủ phòng.' : 'Tên này sẽ hiển thị với những người cùng phòng.'}</p>
       {modal === 'rename' ? <label>Tên hiển thị<input maxLength={40} required value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder="Tên bạn muốn mọi người thấy"/></label> : modal === 'create' ? <><label>Tên phòng<input maxLength={80} required value={roomName} onChange={(e) => setRoomName(e.target.value)}/></label><div className="privacy">🔒　Phòng riêng tư<small>Chỉ người có mã mời mới tham gia được.</small></div></> : <label>Mã mời<input required autoFocus value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="Ví dụ: A1B2C3D4"/></label>}
       <button className="primary full" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : null}{modal === 'create' ? 'Tạo phòng' : modal === 'join' ? 'Tham gia phòng' : 'Lưu tên'} <ChevronRight/></button></form></div>}
+      {miniPlayer && activeRoom && <div className="mini-player-window"><div className="mini-player-title"><span>{activeRoom.name}</span><button onClick={()=>setMiniPlayer(false)}><X/></button></div><div className="mini-player-video"><div id="mini-youtube-player"></div><div className="mini-chat-overlay">{messages.slice(-3).map(m=><div key={m.id}><b>{m.display_name}: </b>{m.body}</div>)}</div><form className="mini-chat-input" onSubmit={sendOverlayChat}><input value={message} onChange={e=>setMessage(e.target.value)} placeholder="Chat nhanh..."/><button><Send/></button></form></div></div>}
   </div>;
 }
 
