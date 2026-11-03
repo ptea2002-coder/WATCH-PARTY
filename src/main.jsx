@@ -65,7 +65,7 @@ function App() {
   const loadRoomDetails = useCallback(async (roomId) => {
     if (!roomId || !supabase) { setMembers([]); setMessages([]); return; }
     const [{ data: memberRows, error: memberError }, { data: messageRows, error: messageError }] = await Promise.all([
-      supabase.from('room_members').select('user_id, role, joined_at').eq('room_id', roomId).order('joined_at'),
+      supabase.from('room_members').select('user_id, role, joined_at, can_control').eq('room_id', roomId).order('joined_at'),
       supabase.from('messages').select('id, user_id, body, created_at').eq('room_id', roomId).order('created_at').limit(100)
     ]);
     if (memberError) setError(memberError.message);
