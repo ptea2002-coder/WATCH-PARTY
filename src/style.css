@@ -27,3 +27,52 @@
 .toast{position:fixed;z-index:12;bottom:20px;left:50%;transform:translateX(-50%);max-width:min(90vw,600px);padding:11px 16px;border:1px solid #51416f;border-radius:9px;background:#211a32;color:#e3d9ff;font-size:11px;box-shadow:0 10px 35px #0008}
 .error-toast{background:#351c28;border-color:#754053;color:#ffd4df}.toast button{margin-left:12px;background:none;color:inherit}
 @media(max-width:760px){.auth-card{padding:25px}.empty-state{padding:28px 12px}.empty-state>div:last-child{flex-wrap:wrap}.stats>div svg{width:12px}}
+
+/* Dedicated room workspace */
+.room-workspace{min-height:calc(100vh - 100px);padding:4px 0 20px}
+.room-topline{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.back-link{background:none;color:#b8a5f5;font-size:10px;padding:8px 0}
+.room-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}
+.room-heading h1{font:700 clamp(25px,3vw,36px) 'Space Grotesk';margin:8px 0 5px;letter-spacing:-.8px}
+.room-heading p{font-size:10px;color:#8f97aa;margin:0}
+.room-main-grid{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start}
+.room-primary{min-width:0}
+.video-empty{min-height:260px;border:1px solid #292f40;border-radius:13px;background:radial-gradient(ellipse at 50% 30%,#25213a,#101520 68%);display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px}
+.video-empty-icon{width:48px;height:48px;border-radius:13px;background:#302448;color:#c4b5fd;display:grid;place-items:center}
+.video-empty-icon svg{width:22px}
+.video-empty h2{font:600 17px 'Space Grotesk';margin:14px 0 6px}
+.video-empty p{max-width:430px;color:#a0a7b7;font-size:10px;line-height:1.7;margin:0 0 8px}
+.video-empty>small{font-size:9px;color:#777f92}
+.room-chat-panel,.room-info-panel{border:1px solid #282e3f;background:#111520;border-radius:12px;padding:16px}
+.room-chat-panel{margin-top:15px}
+.panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.panel-heading h2{display:flex;align-items:center;gap:8px;font:600 14px 'Space Grotesk';margin:0}
+.panel-heading h2 svg{width:16px;color:#bba8ff}
+.panel-heading p{font-size:9px;color:#8991a4;margin:6px 0 0}
+.live-pill{font-size:8px;color:#77e1a1;background:#173127;padding:6px 8px;border-radius:20px}
+.room-chat-list{height:260px;overflow:auto;margin:14px 0;padding:5px 0;border-top:1px solid #262c3a;border-bottom:1px solid #262c3a}
+.room-chat-message{padding:9px 10px;margin:7px 0;background:#171d2a;border-radius:8px}
+.room-chat-message.own{background:#29213e}
+.room-chat-message b{font-size:10px;color:#e4e5ef}
+.room-chat-message small{font-size:8px;color:#7f8799;margin-left:9px}
+.room-chat-message p{font-size:10px;line-height:1.5;color:#c7cbda;margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.room-chat-empty{padding:30px 10px;text-align:center;color:#8991a4;font-size:10px}
+.room-chat-compose{display:flex;gap:8px}
+.room-chat-compose input{flex:1;min-width:0;background:#0c111b;border:1px solid #30364a;border-radius:8px;padding:0 12px;color:#fff;font-size:10px;outline:none}
+.room-chat-compose .primary{height:38px}
+.room-info-panel{position:sticky;top:15px}
+.room-member-list{margin:12px 0 16px}
+.room-member-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid #252b3a}
+.room-member-row>b{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#68518f;color:#fff;font-size:11px}
+.room-member-row div{min-width:0;flex:1}
+.room-member-row strong{display:block;font-size:10px}
+.room-member-row small{display:block;color:#8c94a6;font-size:8px;margin-top:3px}
+.room-member-row>span{font-size:7px;color:#c5b3ff;background:#302448;padding:4px 5px;border-radius:4px}
+.invite-panel{border:1px solid #38304d;background:#1a1928;border-radius:9px;padding:12px;margin-top:14px}
+.invite-panel>small{display:block;color:#8f96a8;font-size:8px;letter-spacing:1px}
+.invite-panel>strong{display:block;color:#d5c7ff;font:700 21px 'Space Grotesk';letter-spacing:2px;margin:8px 0 12px}
+.invite-panel .secondary{height:35px}
+.room-actions-panel{margin-top:12px;display:grid;gap:7px}
+.room-actions-panel .leave-room{border:1px solid #343044;border-radius:7px}
+@media(max-width:1000px){.room-main-grid{grid-template-columns:1fr}.room-info-panel{position:static}.room-member-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px}}
+@media(max-width:760px){.room-workspace{padding-top:0}.room-heading{align-items:flex-start;flex-direction:column}.room-heading .secondary{width:100%;justify-content:center}.video-empty{min-height:210px;padding:18px}.room-chat-panel,.room-info-panel{padding:12px}.room-chat-list{height:240px}.room-chat-compose .primary{padding:0 10px}.room-member-list{grid-template-columns:1fr 1fr}}
