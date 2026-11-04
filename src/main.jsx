@@ -32,6 +32,8 @@ function App() {
   const [nav, setNav] = useState(false);
   const [playlistInput, setPlaylistInput] = useState('');
   const [miniPlayer, setMiniPlayer] = useState(false);
+  const [playerStarted, setPlayerStarted] = useState(false);
+  const [playerError, setPlayerError] = useState('');
   const [overlayMessage, setOverlayMessage] = useState(null);
   const [memberControl, setMemberControl] = useState({});
   const [volume, setVolume] = useState(() => Number(localStorage.getItem('watchparty_volume') || 75));
@@ -124,6 +126,7 @@ function App() {
       if (disposed || !window.YT?.Player) return;
       if (playerRef.current?.destroy) { try { playerRef.current.destroy(); } catch {} }
       playerReadyRef.current = false;
+      setPlayerStarted(false); setPlayerError('');
       playerRef.current = new window.YT.Player('youtube-player', {
         videoId: activeRoom.video_id,
         playerVars: { playsinline: 1, rel: 0, origin: window.location.origin },
@@ -133,7 +136,12 @@ function App() {
             const target = Number(activeRoom.playback_time || 0); if (target > 0) event.target.seekTo(target, true);
             if (activeRoom.playback_state === 'playing') event.target.playVideo();
           },
+          onError: (event) => {
+            const messages = {2:'Mã video YouTube không hợp lệ.',5:'Video không phát được trong trình phát HTML5.',100:'Video không tồn tại hoặc đã bị gỡ.',101:'Chủ video không cho phép phát nhúng trên website.',150:'Chủ video không cho phép phát nhúng trên website.'};
+            setPlayerError(messages[event.data] || ('YouTube báo lỗi phát video (' + event.data + ').'));
+          },
           onStateChange: async (event) => {
+            if (event.data === window.YT.PlayerState.PLAYING) setPlayerStarted(true);
             if (syncGuardRef.current) return;
             if (event.data === window.YT.PlayerState.ENDED) { const nextIndex = (activeRoom.current_video_index || 0) + 1; if (nextIndex < playlist.length) await playPlaylistIndex(nextIndex); else await updatePlayback('paused', 0); }
             else if (event.data === window.YT.PlayerState.PLAYING && canControl) await updatePlayback('playing', event.target.getCurrentTime());
@@ -349,7 +357,7 @@ function App() {
         <div className="room-main-grid">
           <div className="room-primary">
             <div className={"video-player-section " + (miniPlayer ? "is-floating" : "")}>{miniPlayer && <div className="floating-title"><span>{activeRoom.name}</span><button onClick={()=>setMiniPlayer(false)}><X/></button></div>}
-              {activeRoom.video_id ? <div className="youtube-frame-wrap" id="youtube-player-container"><div id="youtube-player"></div>{miniPlayer && overlayMessage && <div className="mini-chat-overlay"><b>{overlayMessage.display_name}: </b>{overlayMessage.body}</div>}{miniPlayer && <form className="mini-chat-input" onSubmit={sendOverlayChat}><input value={message} onChange={e=>setMessage(e.target.value)} placeholder="Chat nhanh..."/><button><Send/></button></form>}</div> : <div className="video-empty"><div className="video-empty-icon"><Film/></div><h2>Chưa có video trong phòng</h2><p>Chủ phòng có thể dán link YouTube để phát video nhúng cho các thành viên.</p><small>Hỗ trợ link youtube.com/watch, youtu.be và YouTube Shorts.</small></div>}
+              {activeRoom.video_id ? <div className="youtube-frame-wrap" id="youtube-player-container"><div id="youtube-player" key={activeRoom.video_id}></div>{!playerStarted && !playerError && <button type="button" className="player-start-overlay" onClick={() => { playerRef.current?.unMute?.(); playerRef.current?.playVideo?.(); }}>▶ Chạm để phát video</button>}{playerError && <div className="player-error-overlay">{playerError}</div>}{miniPlayer && overlayMessage && <div className="mini-chat-overlay"><b>{overlayMessage.display_name}: </b>{overlayMessage.body}</div>}{miniPlayer && <form className="mini-chat-input" onSubmit={sendOverlayChat}><input value={message} onChange={e=>setMessage(e.target.value)} placeholder="Chat nhanh..."/><button><Send/></button></form>}</div> : <div className="video-empty"><div className="video-empty-icon"><Film/></div><h2>Chưa có video trong phòng</h2><p>Chủ phòng có thể dán link YouTube để phát video nhúng cho các thành viên.</p><small>Hỗ trợ link youtube.com/watch, youtu.be và YouTube Shorts.</small></div>}
               {canControl ? <form className="youtube-link-form" onSubmit={saveYouTubeVideo}><label htmlFor="youtube-url">LINK VIDEO YOUTUBE</label><div><input id="youtube-url" type="url" value={youtubeInput} onChange={(e) => setYoutubeInput(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." required/><button className="primary" disabled={videoBusy}>{videoBusy ? <LoaderCircle className="spin"/> : <Play/>}{activeRoom.video_id ? 'Thay video' : 'Phát video'}</button></div>{activeRoom.video_id && <button type="button" className="video-clear" onClick={clearYouTubeVideo} disabled={videoBusy}>Gỡ video khỏi phòng</button>}<small>Người có quyền điều khiển được thêm video và điều khiển phát.</small></form> : <div className="video-host-note">Nguồn video do chủ phòng quản lý.</div>}
               {canControl && <form className="playlist-add-form" onSubmit={addPlaylistLinks}><label>THÊM NHIỀU VIDEO (MỖI LINK MỘT DÒNG)</label><textarea value={playlistInput} onChange={(e) => setPlaylistInput(e.target.value)} placeholder="Dán nhiều link YouTube, mỗi dòng một link"/><button className="secondary"><ListPlus/> Thêm vào danh sách</button></form>}
               <div className="playlist-panel"><h3><ListPlus/> Danh sách phát <span>{playlist.length} video</span></h3>{playlist.map((item,i)=><div className={'playlist-row '+(i===(activeRoom.current_video_index||0)?'selected':'')} key={item.id+'-'+i}><span>{i+1}</span><a href={item.url} target="_blank" rel="noreferrer">{item.id}</a>{canControl && <button onClick={()=>playPlaylistIndex(i)}>{i===(activeRoom.current_video_index||0)?'Đang chọn':'Phát'}</button>}</div>)}</div>
